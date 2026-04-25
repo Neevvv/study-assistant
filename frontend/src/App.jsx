@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from "react"
 
+const BACKEND = "https://study-assistant-backend-hdnx.onrender.com"
+
 function App() {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState("")
@@ -8,13 +10,28 @@ function App() {
   const [chats, setChats] = useState([])
   const [currentChatId, setCurrentChatId] = useState(null)
   const [copied, setCopied] = useState(null)
-  const bottomRef = useRef(null)
   const [notes, setNotes] = useState("")
   const [showNotes, setShowNotes] = useState(false)
+  const bottomRef = useRef(null)
+
+  // Load chats from database on startup
+  useEffect(() => {
+    fetchChats()
+  }, [])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
+
+  const fetchChats = async () => {
+    try {
+      const response = await fetch(`${BACKEND}/chats`)
+      const data = await response.json()
+      setChats(data.chats)
+    } catch (error) {
+      console.log("Error fetching chats:", error)
+    }
+  }
 
   const sendMessage = async () => {
     if (!input.trim()) return
@@ -30,45 +47,56 @@ function App() {
       content: msg.text
     }))
 
-    const response = await fetch("http://127.0.0.1:8000/chat", {
+    const response = await fetch(`${BACKEND}/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: input, history: history, subject: subject, notes: notes })
+      body: JSON.stringify({
+        text: input,
+        history: history,
+        subject: subject,
+        notes: notes,
+        chat_id: currentChatId,
+        title: input.slice(0, 40)
+      })
     })
 
     const data = await response.json()
     const aiMessage = { role: "ai", text: data.reply }
-    const updatedMessages = [...newMessages, aiMessage]
-    setMessages(updatedMessages)
+    setMessages(prev => [...prev, aiMessage])
+    setCurrentChatId(data.chat_id)
     setLoading(false)
-
-    // Save or update chat
-    if (currentChatId) {
-      setChats(prev => prev.map(chat =>
-        chat.id === currentChatId ? { ...chat, messages: updatedMessages } : chat
-      ))
-    } else {
-      const newChat = {
-        id: Date.now(),
-        title: input.slice(0, 40),
-        subject: subject,
-        messages: updatedMessages
-      }
-      setChats(prev => [newChat, ...prev])
-      setCurrentChatId(newChat.id)
-    }
+    fetchChats()
   }
 
   const startNewChat = () => {
     setMessages([])
     setCurrentChatId(null)
     setInput("")
+    setNotes("")
+    setShowNotes(false)
   }
 
-  const loadChat = (chat) => {
-    setMessages(chat.messages)
-    setCurrentChatId(chat.id)
-    setSubject(chat.subject)
+  const loadChat = async (chat) => {
+    try {
+      const response = await fetch(`${BACKEND}/chats/${chat.id}`)
+      const data = await response.json()
+      const formattedMessages = data.messages.map(msg => ({
+        role: msg.role === "assistant" ? "ai" : "user",
+        text: msg.content
+      }))
+      setMessages(formattedMessages)
+      setCurrentChatId(chat.id)
+      setSubject(chat.subject)
+    } catch (error) {
+      console.log("Error loading chat:", error)
+    }
+  }
+
+  const deleteChat = async (e, chatId) => {
+    e.stopPropagation()
+    await fetch(`${BACKEND}/chats/${chatId}`, { method: "DELETE" })
+    if (currentChatId === chatId) startNewChat()
+    fetchChats()
   }
 
   const copyText = (text, index) => {
@@ -78,34 +106,27 @@ function App() {
   }
 
   const uploadPDF = async (e) => {
-  const file = e.target.files[0]
-  if (!file) return
-
-  console.log("Uploading file:", file.name)
-
-  const formData = new FormData()
-  formData.append("file", file)
-
-  try {
-    const response = await fetch("https://study-assistant-backend-hdnx.onrender.com/upload-pdf", {
-      method: "POST",
-      body: formData
-    })
-    console.log("Response status:", response.status)
-    const data = await response.json()
-    console.log("Response data:", data)
-
-    if (!data.text || data.text.trim() === "") {
-      alert("This PDF appears to be scanned and can't be read automatically. Please copy and paste the text into the notes box instead.")
-      return
+    const file = e.target.files[0]
+    if (!file) return
+    const formData = new FormData()
+    formData.append("file", file)
+    try {
+      const response = await fetch(`${BACKEND}/upload-pdf`, {
+        method: "POST",
+        body: formData
+      })
+      const data = await response.json()
+      if (!data.text || data.text.trim() === "") {
+        alert("This PDF appears to be scanned and can't be read automatically. Please copy and paste the text into the notes box instead.")
+        return
+      }
+      setNotes(data.text)
+      setShowNotes(true)
+    } catch (error) {
+      console.log("Error:", error)
     }
+  }
 
-    setNotes(data.text)
-    setShowNotes(true)
-  } catch (error) {
-    console.log("Error:", error)
-  }
-  }
   return (
     <div style={{ display: "flex", height: "100vh", background: "#0f0f0f", color: "white", fontFamily: "Inter, sans-serif" }}>
 
@@ -132,11 +153,21 @@ function App() {
                 cursor: "pointer",
                 background: currentChatId === chat.id ? "#1e1e2e" : "transparent",
                 border: currentChatId === chat.id ? "1px solid #333" : "1px solid transparent",
-                transition: "all 0.2s"
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center"
               }}
             >
-              <div style={{ fontSize: "13px", color: "#ccc", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{chat.title}</div>
-              <div style={{ fontSize: "11px", color: "#555", marginTop: "2px" }}>{chat.subject}</div>
+              <div style={{ overflow: "hidden" }}>
+                <div style={{ fontSize: "13px", color: "#ccc", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{chat.title}</div>
+                <div style={{ fontSize: "11px", color: "#555", marginTop: "2px" }}>{chat.subject}</div>
+              </div>
+              <button
+                onClick={(e) => deleteChat(e, chat.id)}
+                style={{ background: "transparent", border: "none", color: "#555", cursor: "pointer", fontSize: "16px", padding: "0 4px", flexShrink: 0 }}
+              >
+                ×
+              </button>
             </div>
           ))}
         </div>
@@ -220,25 +251,26 @@ function App() {
           )}
           <div ref={bottomRef} />
         </div>
-        
+
         {/* Notes Panel */}
         {showNotes && (
           <div style={{ padding: "0 24px 16px 24px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
               <label style={{ padding: "6px 12px", borderRadius: "8px", background: "#1e1e2e", border: "1px solid #333", color: "#6366f1", fontSize: "13px", cursor: "pointer" }}>
-               📎 Upload PDF
-              <input type="file" accept=".pdf" onChange={uploadPDF} style={{ display: "none" }} />
-            </label>
-            <span style={{ color: "#444", fontSize: "13px" }}>or paste notes below</span>
+                📎 Upload PDF
+                <input type="file" accept=".pdf" onChange={uploadPDF} style={{ display: "none" }} />
+              </label>
+              <span style={{ color: "#444", fontSize: "13px" }}>or paste notes below</span>
+            </div>
+            <textarea
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder="Paste your notes here... The AI will use them to answer your questions."
+              style={{ width: "100%", height: "150px", background: "#1a1a1a", border: "1px solid #333", borderRadius: "12px", color: "white", padding: "12px", fontSize: "14px", resize: "vertical", outline: "none", boxSizing: "border-box" }}
+            />
           </div>
-          <textarea
-            value={notes}
-            onChange={e => setNotes(e.target.value)}
-            placeholder="Paste your notes here... The AI will use them to answer your questions."
-            style={{ width: "100%", height: "150px", background: "#1a1a1a", border: "1px solid #333", borderRadius: "12px", color: "white", padding: "12px", fontSize: "14px", resize: "vertical", outline: "none", boxSizing: "border-box" }}
-          />
-        </div>
-       )}
+        )}
+
         {/* Input */}
         <div style={{ padding: "16px 24px", borderTop: "1px solid #222" }}>
           <div style={{ display: "flex", gap: "12px", alignItems: "center", background: "#1a1a1a", border: "1px solid #333", borderRadius: "12px", padding: "8px 8px 8px 16px" }}>
@@ -250,10 +282,16 @@ function App() {
               placeholder="Ask anything..."
             />
             <button
-             onClick={() => setShowNotes(!showNotes)}
-             style={{ padding: "8px 12px", borderRadius: "8px", background: showNotes ? "#1e1e2e" : "transparent", border: "1px solid #333", color: showNotes ? "#6366f1" : "#666", fontSize: "13px", cursor: "pointer" }}
+              onClick={() => setShowNotes(!showNotes)}
+              style={{ padding: "8px 12px", borderRadius: "8px", background: showNotes ? "#1e1e2e" : "transparent", border: "1px solid #333", color: showNotes ? "#6366f1" : "#666", fontSize: "13px", cursor: "pointer" }}
             >
-             📄 Notes
+              📄 Notes
+            </button>
+            <button
+              onClick={sendMessage}
+              style={{ padding: "8px 20px", borderRadius: "8px", background: "linear-gradient(135deg, #6366f1, #8b5cf6)", color: "white", border: "none", cursor: "pointer", fontWeight: "600", fontSize: "14px" }}
+            >
+              Send
             </button>
           </div>
         </div>
