@@ -39,7 +39,7 @@ async def upload_pdf(file: UploadFile = File(...)):
             extracted = page.extract_text()
             if extracted:
                 text += extracted + "\n"
-    return {"text": text}
+    return {"text": text}   
 
 @app.post("/chat")
 def chat(message: Message):
