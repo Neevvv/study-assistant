@@ -80,6 +80,14 @@ function App() {
   const uploadPDF = async (e) => {
   const file = e.target.files[0]
   if (!file) return
+  
+  const data = await response.json()
+  if (!data.text || data.text.trim() === "") {
+  alert("This PDF appears to be scanned and can't be read automatically. Please copy and paste the text into the notes box instead.")
+  return
+  }
+  setNotes(data.text)
+  setShowNotes(true)
 
   console.log("Uploading file:", file.name)
 
