@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect } from "react"
-import ReactMarkdown from "react-markdown"
 
 const BACKEND = "https://study-assistant-backend-hdnx.onrender.com"
 
@@ -221,7 +220,7 @@ function App() {
                   lineHeight: "1.5",
                   border: msg.role === "ai" ? "1px solid #222" : "none"
                 }}>
-                  <ReactMarkdown>{msg.text}</ReactMarkdown>
+                  {msg.text}
                 </div>
                 {msg.role === "ai" && (
                   <button
