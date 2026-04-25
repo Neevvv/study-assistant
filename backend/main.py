@@ -1,8 +1,10 @@
-from fastapi import FastAPI  # type: ignore
+from fastapi import FastAPI, UploadFile, File  # type: ignore
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from groq import Groq # type: ignore
+import PyPDF2
+import io
 import os
 
 load_dotenv()
@@ -27,6 +29,15 @@ class Message(BaseModel):
 @app.get("/")
 def home():
     return {"message": "Study Assistant is running!"}
+
+@app.post("/upload-pdf")
+async def upload_pdf(file: UploadFile = File(...)):
+    contents = await file.read()
+    pdf_reader = PyPDF2.PdfReader(io.BytesIO(contents))
+    text = ""
+    for page in pdf_reader.pages:
+        text += page.extract_text()
+    return {"text": text}
 
 @app.post("/chat")
 def chat(message: Message):

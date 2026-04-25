@@ -77,6 +77,23 @@ function App() {
     setTimeout(() => setCopied(null), 2000)
   }
 
+  const uploadPDF = async (e) => {
+  const file = e.target.files[0]
+  if (!file) return
+
+  const formData = new FormData()
+  formData.append("file", file)
+
+  const response = await fetch("https://study-assistant-backend-hdnx.onrender.com/upload-pdf", {
+    method: "POST",
+    body: formData
+  })
+
+  const data = await response.json()
+  setNotes(data.text)
+  setShowNotes(true)
+  }
+
   return (
     <div style={{ display: "flex", height: "100vh", background: "#0f0f0f", color: "white", fontFamily: "Inter, sans-serif" }}>
 
@@ -194,14 +211,21 @@ function App() {
         
         {/* Notes Panel */}
         {showNotes && (
-        <div style={{ padding: "0 24px 16px 24px" }}>
+          <div style={{ padding: "0 24px 16px 24px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
+              <label style={{ padding: "6px 12px", borderRadius: "8px", background: "#1e1e2e", border: "1px solid #333", color: "#6366f1", fontSize: "13px", cursor: "pointer" }}>
+               📎 Upload PDF
+              <input type="file" accept=".pdf" onChange={uploadPDF} style={{ display: "none" }} />
+            </label>
+            <span style={{ color: "#444", fontSize: "13px" }}>or paste notes below</span>
+          </div>
           <textarea
-           value={notes}
-           onChange={e => setNotes(e.target.value)}
-           placeholder="Paste your notes here... The AI will use them to answer your questions."
-           style={{ width: "100%", height: "150px", background: "#1a1a1a", border: "1px solid #333", borderRadius: "12px", color: "white", padding: "12px", fontSize: "14px", resize: "vertical", outline: "none", boxSizing: "border-box" }}
-         />
-       </div>
+            value={notes}
+            onChange={e => setNotes(e.target.value)}
+            placeholder="Paste your notes here... The AI will use them to answer your questions."
+            style={{ width: "100%", height: "150px", background: "#1a1a1a", border: "1px solid #333", borderRadius: "12px", color: "white", padding: "12px", fontSize: "14px", resize: "vertical", outline: "none", boxSizing: "border-box" }}
+          />
+        </div>
        )}
         {/* Input */}
         <div style={{ padding: "16px 24px", borderTop: "1px solid #222" }}>
