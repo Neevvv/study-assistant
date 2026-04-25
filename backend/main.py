@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from groq import Groq # type: ignore
-import PyPDF2
+import pdfplumber
 import io
 import os
 
@@ -33,10 +33,12 @@ def home():
 @app.post("/upload-pdf")
 async def upload_pdf(file: UploadFile = File(...)):
     contents = await file.read()
-    pdf_reader = PyPDF2.PdfReader(io.BytesIO(contents))
     text = ""
-    for page in pdf_reader.pages:
-        text += page.extract_text()
+    with pdfplumber.open(io.BytesIO(contents)) as pdf:
+        for page in pdf.pages:
+            extracted = page.extract_text()
+            if extracted:
+                text += extracted + "\n"
     return {"text": text}
 
 @app.post("/chat")

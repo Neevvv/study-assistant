@@ -3,5 +3,5 @@ uvicorn
 groq
 python-dotenv
 pydantic
-PyPDF2
+pdfplumber
 python-multipart
