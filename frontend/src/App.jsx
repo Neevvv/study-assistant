@@ -81,19 +81,25 @@ function App() {
   const file = e.target.files[0]
   if (!file) return
 
+  console.log("Uploading file:", file.name)
+
   const formData = new FormData()
   formData.append("file", file)
 
+  try {
   const response = await fetch("https://study-assistant-backend-hdnx.onrender.com/upload-pdf", {
     method: "POST",
     body: formData
   })
-
+  console.log("Response status:", response.status)
   const data = await response.json()
+  console.log("Response data:", data)
   setNotes(data.text)
   setShowNotes(true)
+  } catch (error) {
+    console.log("Error:", error)
   }
-
+  }
   return (
     <div style={{ display: "flex", height: "100vh", background: "#0f0f0f", color: "white", fontFamily: "Inter, sans-serif" }}>
 
