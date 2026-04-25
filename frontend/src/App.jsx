@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react"
+import ReactMarkdown from "react-markdown"
 
 const BACKEND = "https://study-assistant-backend-hdnx.onrender.com"
 
@@ -34,39 +35,39 @@ function App() {
   }
 
   const sendMessage = async () => {
-    if (!input.trim()) return
+  if (!input.trim() || loading) return
 
-    const userMessage = { role: "user", text: input }
-    const newMessages = [...messages, userMessage]
-    setMessages(newMessages)
-    setInput("")
-    setLoading(true)
+  const userMessage = { role: "user", text: input }
+  const newMessages = [...messages, userMessage]
+  setMessages(newMessages)
+  setInput("")
+  setLoading(true)
 
-    const history = messages.map(msg => ({
-      role: msg.role === "ai" ? "assistant" : "user",
-      content: msg.text
-    }))
+  const history = messages.map(msg => ({
+    role: msg.role === "ai" ? "assistant" : "user",
+    content: msg.text
+  }))
 
-    const response = await fetch(`${BACKEND}/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        text: input,
-        history: history,
-        subject: subject,
-        notes: notes,
-        chat_id: currentChatId,
-        title: input.slice(0, 40)
-      })
+  const response = await fetch(`${BACKEND}/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      text: input,
+      history: history,
+      subject: subject,
+      notes: notes,
+      chat_id: currentChatId,
+      title: input.slice(0, 40)
     })
+  })
 
-    const data = await response.json()
-    const aiMessage = { role: "ai", text: data.reply }
-    setMessages(prev => [...prev, aiMessage])
-    setCurrentChatId(data.chat_id)
-    setLoading(false)
-    fetchChats()
-  }
+  const data = await response.json()
+  const aiMessage = { role: "ai", text: data.reply }
+  setMessages(prev => [...prev, aiMessage])
+  setCurrentChatId(data.chat_id)
+  setLoading(false)
+  fetchChats()
+ }
 
   const startNewChat = () => {
     setMessages([])
@@ -220,7 +221,7 @@ function App() {
                   lineHeight: "1.5",
                   border: msg.role === "ai" ? "1px solid #222" : "none"
                 }}>
-                  {msg.text}
+                  <ReactMarkdown>{msg.text}</ReactMarkdown>
                 </div>
                 {msg.role === "ai" && (
                   <button
