@@ -80,14 +80,6 @@ function App() {
   const uploadPDF = async (e) => {
   const file = e.target.files[0]
   if (!file) return
-  
-  const data = await response.json()
-  if (!data.text || data.text.trim() === "") {
-  alert("This PDF appears to be scanned and can't be read automatically. Please copy and paste the text into the notes box instead.")
-  return
-  }
-  setNotes(data.text)
-  setShowNotes(true)
 
   console.log("Uploading file:", file.name)
 
@@ -95,15 +87,21 @@ function App() {
   formData.append("file", file)
 
   try {
-  const response = await fetch("https://study-assistant-backend-hdnx.onrender.com/upload-pdf", {
-    method: "POST",
-    body: formData
-  })
-  console.log("Response status:", response.status)
-  const data = await response.json()
-  console.log("Response data:", data)
-  setNotes(data.text)
-  setShowNotes(true)
+    const response = await fetch("https://study-assistant-backend-hdnx.onrender.com/upload-pdf", {
+      method: "POST",
+      body: formData
+    })
+    console.log("Response status:", response.status)
+    const data = await response.json()
+    console.log("Response data:", data)
+
+    if (!data.text || data.text.trim() === "") {
+      alert("This PDF appears to be scanned and can't be read automatically. Please copy and paste the text into the notes box instead.")
+      return
+    }
+
+    setNotes(data.text)
+    setShowNotes(true)
   } catch (error) {
     console.log("Error:", error)
   }
