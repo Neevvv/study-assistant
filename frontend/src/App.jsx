@@ -12,33 +12,25 @@ function App() {
   const [copied, setCopied] = useState(null)
   const [notes, setNotes] = useState("")
   const [showNotes, setShowNotes] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
   const bottomRef = useRef(null)
 
-  useEffect(() => {
-    fetchChats()
-  }, [])
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [messages])
+  useEffect(() => { fetchChats() }, [])
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }) }, [messages])
 
   const fetchChats = async () => {
     try {
-      const response = await fetch(`${BACKEND}/chats`)
-      const data = await response.json()
+      const res = await fetch(`${BACKEND}/chats`)
+      const data = await res.json()
       setChats(data.chats)
-    } catch (error) {
-      console.log("Error fetching chats:", error)
-    }
+    } catch (e) { console.log(e) }
   }
 
   const sendMessage = async () => {
     if (!input.trim() || loading) return
-
     const userText = input
     const userMessage = { role: "user", text: userText }
-    const newMessages = [...messages, userMessage]
-    setMessages(newMessages)
+    setMessages(prev => [...prev, userMessage])
     setInput("")
     setLoading(true)
 
@@ -48,31 +40,26 @@ function App() {
     }))
 
     try {
-      const response = await fetch(`${BACKEND}/chat`, {
+      const res = await fetch(`${BACKEND}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           text: userText,
-          history: history,
-          subject: subject,
-          notes: notes,
+          history,
+          subject,
+          notes,
           chat_id: currentChatId,
           title: userText.slice(0, 40)
         })
       })
-
-      const data = await response.json()
-      console.log("Response data:", data)
-      const aiMessage = { role: "ai", text: data.reply || "Sorry, something went wrong." }
-      setMessages(prev => [...prev, aiMessage])
+      const data = await res.json()
+      setMessages(prev => [...prev, { role: "ai", text: data.reply || "Something went wrong." }])
       setCurrentChatId(data.chat_id)
-    } catch (error) {
-      console.log("Error:", error)
-      setMessages(prev => [...prev, { role: "ai", text: "Sorry, something went wrong." }])
+      fetchChats()
+    } catch (e) {
+      setMessages(prev => [...prev, { role: "ai", text: "Error connecting to server." }])
     }
-
     setLoading(false)
-    fetchChats()
   }
 
   const startNewChat = () => {
@@ -85,18 +72,15 @@ function App() {
 
   const loadChat = async (chat) => {
     try {
-      const response = await fetch(`${BACKEND}/chats/${chat.id}`)
-      const data = await response.json()
-      const formattedMessages = data.messages.map(msg => ({
+      const res = await fetch(`${BACKEND}/chats/${chat.id}`)
+      const data = await res.json()
+      setMessages(data.messages.map(msg => ({
         role: msg.role === "assistant" ? "ai" : "user",
         text: msg.content
-      }))
-      setMessages(formattedMessages)
+      })))
       setCurrentChatId(chat.id)
       setSubject(chat.subject)
-    } catch (error) {
-      console.log("Error loading chat:", error)
-    }
+    } catch (e) { console.log(e) }
   }
 
   const deleteChat = async (e, chatId) => {
@@ -118,200 +102,191 @@ function App() {
     const formData = new FormData()
     formData.append("file", file)
     try {
-      const response = await fetch(`${BACKEND}/upload-pdf`, {
-        method: "POST",
-        body: formData
-      })
-      const data = await response.json()
+      const res = await fetch(`${BACKEND}/upload-pdf`, { method: "POST", body: formData })
+      const data = await res.json()
       if (!data.text || data.text.trim() === "") {
-        alert("This PDF appears to be scanned and can't be read automatically. Please copy and paste the text into the notes box instead.")
+        alert("This PDF appears to be scanned. Please paste the text manually.")
         return
       }
       setNotes(data.text)
       setShowNotes(true)
-    } catch (error) {
-      console.log("Error:", error)
-    }
+    } catch (e) { console.log(e) }
   }
 
   return (
-    <div style={{ display: "flex", height: "100vh", background: "#0f0f0f", color: "white", fontFamily: "Inter, sans-serif" }}>
+    <div className="flex h-screen bg-[#212121] text-white font-sans">
 
       {/* Sidebar */}
-      <div style={{ width: "260px", borderRight: "1px solid #222", display: "flex", flexDirection: "column", padding: "16px", gap: "8px" }}>
-        <button
-          onClick={startNewChat}
-          style={{ padding: "10px", borderRadius: "8px", background: "linear-gradient(135deg, #6366f1, #8b5cf6)", color: "white", border: "none", cursor: "pointer", fontWeight: "600", fontSize: "14px", marginBottom: "8px" }}
-        >
-          + New Chat
-        </button>
-        <div style={{ fontSize: "11px", color: "#444", textTransform: "uppercase", letterSpacing: "1px", padding: "4px 0" }}>Previous Chats</div>
-        <div style={{ overflowY: "auto", flex: 1, display: "flex", flexDirection: "column", gap: "4px" }}>
-          {chats.length === 0 && (
-            <div style={{ color: "#444", fontSize: "13px", textAlign: "center", marginTop: "20px" }}>No chats yet</div>
-          )}
-          {chats.map(chat => (
-            <div
-              key={chat.id}
-              onClick={() => loadChat(chat)}
-              style={{
-                padding: "10px 12px",
-                borderRadius: "8px",
-                cursor: "pointer",
-                background: currentChatId === chat.id ? "#1e1e2e" : "transparent",
-                border: currentChatId === chat.id ? "1px solid #333" : "1px solid transparent",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center"
-              }}
-            >
-              <div style={{ overflow: "hidden" }}>
-                <div style={{ fontSize: "13px", color: "#ccc", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{chat.title}</div>
-                <div style={{ fontSize: "11px", color: "#555", marginTop: "2px" }}>{chat.subject}</div>
-              </div>
-              <button
-                onClick={(e) => deleteChat(e, chat.id)}
-                style={{ background: "transparent", border: "none", color: "#555", cursor: "pointer", fontSize: "16px", padding: "0 4px", flexShrink: 0 }}
-              >
-                ×
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Main chat area */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
-
-        {/* Header */}
-        <div style={{ padding: "16px 24px", borderBottom: "1px solid #222", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <div style={{ width: "32px", height: "32px", background: "linear-gradient(135deg, #6366f1, #8b5cf6)", borderRadius: "8px" }}></div>
-            <span style={{ fontWeight: "600", fontSize: "18px" }}>Study Assistant</span>
-          </div>
-          <select
-            value={subject}
-            onChange={e => setSubject(e.target.value)}
-            style={{ padding: "8px 12px", borderRadius: "8px", border: "1px solid #333", background: "#1a1a1a", color: "white", fontSize: "14px", cursor: "pointer" }}
+      {sidebarOpen && (
+        <div className="w-64 bg-[#171717] flex flex-col py-3 px-2 gap-1">
+          <button
+            onClick={startNewChat}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-[#2a2a2a] text-sm text-gray-300 transition-colors mb-1"
           >
-            <option>General</option>
-            <option>Mathematics</option>
-            <option>Science</option>
-            <option>History</option>
-            <option>English</option>
-            <option>Computer Science</option>
-          </select>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg>
+            New chat
+          </button>
+
+          <div className="text-xs text-gray-500 px-3 py-1 mt-2">Previous chats</div>
+
+          <div className="flex-1 overflow-y-auto flex flex-col gap-0.5">
+            {chats.length === 0 && (
+              <div className="text-xs text-gray-600 text-center mt-4">No chats yet</div>
+            )}
+            {chats.map(chat => (
+              <div
+                key={chat.id}
+                onClick={() => loadChat(chat)}
+                className={`flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer text-sm transition-colors group ${currentChatId === chat.id ? "bg-[#2a2a2a]" : "hover:bg-[#2a2a2a]"}`}
+              >
+                <span className="truncate text-gray-300">{chat.title}</span>
+                <button
+                  onClick={(e) => deleteChat(e, chat.id)}
+                  className="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-gray-300 ml-2 flex-shrink-0"
+                >×</button>
+              </div>
+            ))}
+          </div>
+
+          {/* Subject selector in sidebar */}
+          <div className="px-2 pt-2 border-t border-[#2a2a2a]">
+            <select
+              value={subject}
+              onChange={e => setSubject(e.target.value)}
+              className="w-full bg-[#2a2a2a] text-gray-300 text-sm rounded-lg px-3 py-2 border border-[#333] outline-none cursor-pointer"
+            >
+              <option>General</option>
+              <option>Mathematics</option>
+              <option>Science</option>
+              <option>History</option>
+              <option>English</option>
+              <option>Computer Science</option>
+            </select>
+          </div>
+        </div>
+      )}
+
+      {/* Main area */}
+      <div className="flex-1 flex flex-col">
+
+        {/* Top bar */}
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-[#2a2a2a]">
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="text-gray-400 hover:text-white transition-colors"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          </button>
+          <span className="text-sm font-medium text-gray-300">Study Assistant</span>
         </div>
 
         {/* Messages */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "24px", display: "flex", flexDirection: "column", gap: "16px" }}>
-          {messages.length === 0 && (
-            <div style={{ textAlign: "center", color: "#444", marginTop: "80px" }}>
-              <div style={{ fontSize: "48px", marginBottom: "16px" }}>📚</div>
-              <div style={{ fontSize: "20px", fontWeight: "600", color: "#666" }}>What do you want to learn today?</div>
-              <div style={{ fontSize: "14px", color: "#444", marginTop: "8px" }}>Select a subject and start asking questions</div>
+        <div className="flex-1 overflow-y-auto">
+          {messages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full gap-4">
+              <div className="text-4xl">📚</div>
+              <h1 className="text-2xl font-semibold text-gray-200">What do you want to learn?</h1>
+              <p className="text-gray-500 text-sm">Select a subject from the sidebar and start asking</p>
             </div>
-          )}
-          {messages.map((msg, i) => (
-            <div key={i} style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}>
-              {msg.role === "ai" && (
-                <div style={{ width: "28px", height: "28px", background: "linear-gradient(135deg, #6366f1, #8b5cf6)", borderRadius: "6px", marginRight: "10px", flexShrink: 0, marginTop: "4px" }}></div>
+          ) : (
+            <div className="max-w-3xl mx-auto px-4 py-6 flex flex-col gap-6">
+              {messages.map((msg, i) => (
+                <div key={i} className={`flex gap-4 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                  {msg.role === "ai" && (
+                    <div className="w-8 h-8 rounded-full bg-[#10a37f] flex items-center justify-center flex-shrink-0 mt-1">
+                      <span className="text-xs font-bold">AI</span>
+                    </div>
+                  )}
+                  <div className={`max-w-[80%] ${msg.role === "user" ? "bg-[#2f2f2f] rounded-3xl px-5 py-3" : ""}`}>
+                    <p className="text-gray-100 text-sm leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                    {msg.role === "ai" && (
+                      <button
+                        onClick={() => copyText(msg.text, i)}
+                        className="mt-2 text-xs text-gray-500 hover:text-gray-300 transition-colors"
+                      >
+                        {copied === i ? "Copied!" : "Copy"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {loading && (
+                <div className="flex gap-4">
+                  <div className="w-8 h-8 rounded-full bg-[#10a37f] flex items-center justify-center flex-shrink-0">
+                    <span className="text-xs font-bold">AI</span>
+                  </div>
+                  <div className="flex items-center gap-1 mt-2">
+                    {[0,1,2].map(i => (
+                      <div key={i} className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
+                    ))}
+                  </div>
+                </div>
               )}
-              <div style={{ maxWidth: "70%" }}>
-                <div style={{
-                  padding: "12px 16px",
-                  borderRadius: msg.role === "user" ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
-                  background: msg.role === "user" ? "linear-gradient(135deg, #6366f1, #8b5cf6)" : "#1a1a1a",
-                  color: "white",
-                  fontSize: "15px",
-                  lineHeight: "1.5",
-                  border: msg.role === "ai" ? "1px solid #222" : "none"
-                }}>
-                  {msg.text}
-                </div>
-                {msg.role === "ai" && (
-                  <button
-                    onClick={() => copyText(msg.text, i)}
-                    style={{ marginTop: "6px", padding: "4px 10px", borderRadius: "6px", background: "transparent", border: "1px solid #333", color: "#666", fontSize: "12px", cursor: "pointer" }}
-                  >
-                    {copied === i ? "Copied!" : "Copy"}
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
-          {loading && (
-            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-              <div style={{ width: "28px", height: "28px", background: "linear-gradient(135deg, #6366f1, #8b5cf6)", borderRadius: "6px" }}></div>
-              <div style={{ background: "#1a1a1a", border: "1px solid #222", padding: "12px 16px", borderRadius: "18px 18px 18px 4px" }}>
-                <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
-                  {[0, 1, 2].map(i => (
-                    <div key={i} style={{
-                      width: "6px", height: "6px", borderRadius: "50%", background: "#6366f1",
-                      animation: "bounce 1.2s infinite",
-                      animationDelay: `${i * 0.2}s`
-                    }} />
-                  ))}
-                </div>
-              </div>
+              <div ref={bottomRef} />
             </div>
           )}
-          <div ref={bottomRef} />
         </div>
 
-        {/* Notes Panel */}
+        {/* Notes panel */}
         {showNotes && (
-          <div style={{ padding: "0 24px 16px 24px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
-              <label style={{ padding: "6px 12px", borderRadius: "8px", background: "#1e1e2e", border: "1px solid #333", color: "#6366f1", fontSize: "13px", cursor: "pointer" }}>
-                📎 Upload PDF
-                <input type="file" accept=".pdf" onChange={uploadPDF} style={{ display: "none" }} />
-              </label>
-              <span style={{ color: "#444", fontSize: "13px" }}>or paste notes below</span>
+          <div className="max-w-3xl mx-auto w-full px-4 pb-2">
+            <div className="bg-[#2f2f2f] rounded-xl p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <label className="text-xs text-gray-400 cursor-pointer hover:text-gray-200 transition-colors">
+                  📎 Upload PDF
+                  <input type="file" accept=".pdf" onChange={uploadPDF} className="hidden" />
+                </label>
+                <span className="text-gray-600 text-xs">or paste below</span>
+              </div>
+              <textarea
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                placeholder="Paste your notes here..."
+                className="w-full bg-transparent text-gray-300 text-sm outline-none resize-none h-24 placeholder-gray-600"
+              />
             </div>
-            <textarea
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-              placeholder="Paste your notes here... The AI will use them to answer your questions."
-              style={{ width: "100%", height: "150px", background: "#1a1a1a", border: "1px solid #333", borderRadius: "12px", color: "white", padding: "12px", fontSize: "14px", resize: "vertical", outline: "none", boxSizing: "border-box" }}
-            />
           </div>
         )}
 
-        {/* Input */}
-        <div style={{ padding: "16px 24px", borderTop: "1px solid #222" }}>
-          <div style={{ display: "flex", gap: "12px", alignItems: "center", background: "#1a1a1a", border: "1px solid #333", borderRadius: "12px", padding: "8px 8px 8px 16px" }}>
-            <input
-              style={{ flex: 1, background: "none", border: "none", outline: "none", color: "white", fontSize: "15px", padding: "6px 0" }}
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && sendMessage()}
-              placeholder="Ask anything..."
-            />
+        {/* Input bar */}
+        <div className="max-w-3xl mx-auto w-full px-4 pb-6 pt-2">
+          <div className="bg-[#2f2f2f] rounded-2xl flex items-end gap-2 px-4 py-3">
             <button
               onClick={() => setShowNotes(!showNotes)}
-              style={{ padding: "8px 12px", borderRadius: "8px", background: showNotes ? "#1e1e2e" : "transparent", border: "1px solid #333", color: showNotes ? "#6366f1" : "#666", fontSize: "13px", cursor: "pointer" }}
+              className={`text-gray-400 hover:text-white transition-colors flex-shrink-0 mb-1 ${showNotes ? "text-white" : ""}`}
+              title="Add notes"
             >
-              📄 Notes
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
             </button>
+            <textarea
+              className="flex-1 bg-transparent text-gray-100 text-sm outline-none resize-none placeholder-gray-500 max-h-40"
+              rows={1}
+              value={input}
+              onChange={e => {
+                setInput(e.target.value)
+                e.target.style.height = "auto"
+                e.target.style.height = e.target.scrollHeight + "px"
+              }}
+              onKeyDown={e => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault()
+                  sendMessage()
+                }
+              }}
+              placeholder="Message Study Assistant..."
+            />
             <button
               onClick={sendMessage}
-              style={{ padding: "8px 20px", borderRadius: "8px", background: "linear-gradient(135deg, #6366f1, #8b5cf6)", color: "white", border: "none", cursor: "pointer", fontWeight: "600", fontSize: "14px" }}
+              disabled={!input.trim() || loading}
+              className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-colors mb-1 ${input.trim() && !loading ? "bg-white text-black hover:bg-gray-200" : "bg-[#444] text-gray-600 cursor-not-allowed"}`}
             >
-              Send
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
             </button>
           </div>
+          <p className="text-center text-xs text-gray-600 mt-2">Press Enter to send, Shift+Enter for new line</p>
         </div>
 
       </div>
-
-      <style>{`
-        @keyframes bounce {
-          0%, 60%, 100% { transform: translateY(0); }
-          30% { transform: translateY(-6px); }
-        }
-      `}</style>
-
     </div>
   )
 }
