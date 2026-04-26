@@ -30,7 +30,7 @@ class Message(BaseModel):
     history: list = []
     subject: str = "General"
     notes: str = ""
-    chat_id: str = None
+    chat_id: str | None = None
     title: str = ""
 
 @app.get("/")
