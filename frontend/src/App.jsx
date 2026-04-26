@@ -14,7 +14,6 @@ function App() {
   const [showNotes, setShowNotes] = useState(false)
   const bottomRef = useRef(null)
 
-  // Load chats from database on startup
   useEffect(() => {
     fetchChats()
   }, [])
@@ -34,39 +33,47 @@ function App() {
   }
 
   const sendMessage = async () => {
-  if (!input.trim() || loading) return
+    if (!input.trim() || loading) return
 
-  const userMessage = { role: "user", text: input }
-  const newMessages = [...messages, userMessage]
-  setMessages(newMessages)
-  setInput("")
-  setLoading(true)
+    const userText = input
+    const userMessage = { role: "user", text: userText }
+    const newMessages = [...messages, userMessage]
+    setMessages(newMessages)
+    setInput("")
+    setLoading(true)
 
-  const history = messages.map(msg => ({
-    role: msg.role === "ai" ? "assistant" : "user",
-    content: msg.text
-  }))
+    const history = messages.map(msg => ({
+      role: msg.role === "ai" ? "assistant" : "user",
+      content: msg.text
+    }))
 
-  const response = await fetch(`${BACKEND}/chat`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      text: input,
-      history: history,
-      subject: subject,
-      notes: notes,
-      chat_id: currentChatId,
-      title: input.slice(0, 40)
-    })
-  })
+    try {
+      const response = await fetch(`${BACKEND}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: userText,
+          history: history,
+          subject: subject,
+          notes: notes,
+          chat_id: currentChatId,
+          title: userText.slice(0, 40)
+        })
+      })
 
-  const data = await response.json()
-  const aiMessage = { role: "ai", text: data.reply }
-  setMessages(prev => [...prev, aiMessage])
-  setCurrentChatId(data.chat_id)
-  setLoading(false)
-  fetchChats()
- }
+      const data = await response.json()
+      console.log("Response data:", data)
+      const aiMessage = { role: "ai", text: data.reply || "Sorry, something went wrong." }
+      setMessages(prev => [...prev, aiMessage])
+      setCurrentChatId(data.chat_id)
+    } catch (error) {
+      console.log("Error:", error)
+      setMessages(prev => [...prev, { role: "ai", text: "Sorry, something went wrong." }])
+    }
+
+    setLoading(false)
+    fetchChats()
+  }
 
   const startNewChat = () => {
     setMessages([])
